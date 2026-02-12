@@ -4,71 +4,152 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Shopee Monitor Nugroho</title>
+
 <style>
-body{font-family:Arial;background:#f4f6f8;padding:20px}
-.card{background:white;padding:15px;margin-bottom:10px;border-radius:10px}
-button{padding:8px;margin-top:5px;border:none;border-radius:6px}
+body{
+font-family:Arial;
+background:#f4f6f8;
+padding:15px;
+}
+
+.card{
+background:white;
+padding:12px;
+margin-bottom:10px;
+border-radius:10px;
+}
+
+input,button{
+padding:8px;
+margin:5px 0;
+width:100%;
+}
+
+button{
+border:none;
+border-radius:6px;
+cursor:pointer;
+}
+
 .posted{background:green;color:white}
 .pending{background:orange;color:white}
 .failed{background:red;color:white}
+
 </style>
+
 </head>
 <body>
 
 <h2>Shopee Monitor Nugroho</h2>
-<p id="stats"></p>
 
-<input id="produk" placeholder="Produk"><br><br>
-<input id="jam" placeholder="Jam"><br><br>
+<div class="card">
 
-<button onclick="tambah()">Tambah</button>
+<label>Tanggal</label>
+<input type="date" id="tanggal">
+
+<label>Jam</label>
+<input type="time" id="jam">
+
+<label>Produk</label>
+<input type="text" id="produk" placeholder="Safety Boot">
+
+<button onclick="tambah()">Tambah Jadwal</button>
+
+</div>
+
+<div class="card">
+<h3 id="stats"></h3>
+</div>
 
 <div id="list"></div>
 
 <script>
 
-let TARGET=15;
-let data=[];
+let TARGET = 15;
 
-function tambah(){
-let produk=document.getElementById("produk").value;
-let jam=document.getElementById("jam").value;
+let data = JSON.parse(localStorage.getItem("jadwal") || "[]");
 
-data.push({produk,jam,status:"Pending"});
+document.getElementById("tanggal").value =
+new Date().toISOString().split('T')[0];
+
+function simpan(){
+localStorage.setItem("jadwal", JSON.stringify(data));
 render();
 }
 
-function setStatus(i,s){
-data[i].status=s;
-render();
+function tambah(){
+
+let tanggal = document.getElementById("tanggal").value;
+let jam = document.getElementById("jam").value;
+let produk = document.getElementById("produk").value;
+
+if(!tanggal || !jam || !produk){
+alert("Lengkapi semua field");
+return;
+}
+
+data.push({
+tanggal,
+jam,
+produk,
+status:"Pending"
+});
+
+simpan();
+
+}
+
+function setStatus(index,status){
+
+data[index].status=status;
+simpan();
+
 }
 
 function render(){
 
-let posted=data.filter(d=>d.status=="Posted").length;
+let tanggal = document.getElementById("tanggal").value;
 
-document.getElementById("stats").innerHTML=
-"Posted: "+posted+" | Target: "+TARGET;
+let hariIni = data
+.filter(d=>d.tanggal===tanggal)
+.sort((a,b)=>a.jam.localeCompare(b.jam));
+
+let posted = hariIni.filter(d=>d.status==="Posted").length;
+
+document.getElementById("stats").innerHTML =
+`
+Tanggal: ${tanggal}<br>
+Posted: ${posted} / ${TARGET}
+`;
 
 let html="";
 
-data.forEach((d,i)=>{
+hariIni.forEach((d,i)=>{
+
+let index = data.indexOf(d);
 
 html+=`
 <div class="card">
-${d.jam} - ${d.produk}<br>
-${d.status}<br>
-<button class="posted" onclick="setStatus(${i},'Posted')">Posted</button>
-<button class="pending" onclick="setStatus(${i},'Pending')">Pending</button>
-<button class="failed" onclick="setStatus(${i},'Failed')">Failed</button>
+
+<b>${d.jam} - ${d.produk}</b><br>
+Status: ${d.status}<br>
+
+<button class="posted" onclick="setStatus(${index},'Posted')">Posted</button>
+
+<button class="pending" onclick="setStatus(${index},'Pending')">Pending</button>
+
+<button class="failed" onclick="setStatus(${index},'Failed')">Failed</button>
+
 </div>
 `;
 
 });
 
-document.getElementById("list").innerHTML=html;
+document.getElementById("list").innerHTML = html;
 
 }
+
+document.getElementById("tanggal").onchange = render;
 
 render();
 
