@@ -1,14 +1,14 @@
 <!DOCTYPE html>
-<html lang="id">
+<html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Shopee Monitor Nugroho</title>
+<title>Shopee Monitor Nugroho Firebase</title>
 <link rel="manifest" href="manifest.json">
 <style>
 body{font-family:Arial;background:#f4f6f8;padding:15px;}
-.card{background:white;padding:12px;margin-bottom:10px;border-radius:10px;box-shadow:0 2px 6px rgba(0,0,0,0.1);}
-input,button{padding:10px;margin:5px 0;width:100%;border-radius:6px;border:1px solid #ccc;}
+.card{background:white;padding:12px;margin-bottom:10px;border-radius:10px;}
+input,button{padding:10px;margin:5px 0;width:100%;border-radius:6px;}
 button{border:none;cursor:pointer;font-weight:bold;}
 .posted{background:green;color:white;}
 .delete{background:#333;color:white;}
@@ -16,74 +16,113 @@ button{border:none;cursor:pointer;font-weight:bold;}
 </style>
 </head>
 <body>
-<h2>Shopee Monitor Nugroho</h2>
+
+<h2>Shopee Monitor Nugroho (Realtime Sync)</h2>
+
 <div class="card">
 <label>Tanggal</label>
 <input type="date" id="tanggal">
 <label>Jam</label>
 <input type="time" id="jam">
 <label>Produk</label>
-<input type="text" id="produk" placeholder="Safety Boot">
+<input type="text" id="produk">
 <button onclick="tambah()">Tambah Jadwal</button>
 </div>
+
 <div class="card stats" id="stats"></div>
 <div id="list"></div>
-<script>
+
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getDatabase, ref, push, onValue, update, remove } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBJr_T5_d8EwYGRY7eQGCOffUVGuf1tcVg",
+  authDomain: "shopee-monitor-nugroho.firebaseapp.com",
+  databaseURL: "https://shopee-monitor-nugroho-default-rtdb.firebaseio.com",
+  projectId: "shopee-monitor-nugroho",
+  storageBucket: "shopee-monitor-nugroho.firebasestorage.app",
+  messagingSenderId: "870048461022",
+  appId: "1:870048461022:web:79900a4e1f911f3824924f",
+  measurementId: "G-W2DF2G8WLN"
+};
+
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+let jadwal = {};
 let TARGET = 15;
-let data = JSON.parse(localStorage.getItem("jadwal") || "[]");
 let notified = {};
+
 document.getElementById("tanggal").value = new Date().toISOString().split('T')[0];
-function simpan(){localStorage.setItem("jadwal", JSON.stringify(data));render();}
-function tambah(){
-let tanggal=document.getElementById("tanggal").value;
-let jam=document.getElementById("jam").value;
-let produk=document.getElementById("produk").value;
-if(!tanggal||!jam||!produk){alert("Lengkapi semua field");return;}
-data.push({tanggal,jam,produk,status:"Pending"});simpan();}
-function hapus(index){if(confirm("Hapus jadwal ini?")){data.splice(index,1);simpan();}}
-function setPosted(index){data[index].status="Posted";simpan();}
+
+window.tambah = function() {
+let tanggal = document.getElementById("tanggal").value;
+let jam = document.getElementById("jam").value;
+let produk = document.getElementById("produk").value;
+push(ref(db,"jadwal"),{tanggal,jam,produk,status:"Pending"});
+}
+
+window.setPosted = function(key) {
+update(ref(db,"jadwal/"+key),{status:"Posted"});
+}
+
+window.hapus = function(key) {
+remove(ref(db,"jadwal/"+key));
+}
+
+onValue(ref(db,"jadwal"), snapshot=>{
+jadwal = snapshot.val() || {};
+render();
+});
+
 function render(){
 let tanggal=document.getElementById("tanggal").value;
-let hariIni=data.filter(d=>d.tanggal===tanggal).sort((a,b)=>a.jam.localeCompare(b.jam));
-let posted=hariIni.filter(d=>d.status==="Posted").length;
-let pending=hariIni.filter(d=>d.status==="Pending").length;
-document.getElementById("stats").innerHTML=`Tanggal: ${tanggal}<br>Posted: ${posted} / ${TARGET}<br>Pending: ${pending}`;
-let tampil=hariIni.filter(d=>d.status==="Pending");
+let entries=Object.entries(jadwal).filter(([k,v])=>v.tanggal===tanggal);
+let posted=entries.filter(([k,v])=>v.status==="Posted").length;
+let pending=entries.filter(([k,v])=>v.status==="Pending").length;
+document.getElementById("stats").innerHTML=`Posted: ${posted} / ${TARGET}<br>Pending: ${pending}`;
 let html="";
-tampil.forEach(d=>{
-let index=data.indexOf(d);
-html+=`<div class="card"><b>${d.jam} - ${d.produk}</b><br>Status: Pending<br><br>
-<button class="posted" onclick="setPosted(${index})">Posted</button>
-<button class="delete" onclick="hapus(${index})">Hapus</button></div>`;});
-document.getElementById("list").innerHTML=html;}
-if("Notification" in window){Notification.requestPermission();}
+entries.filter(([k,v])=>v.status==="Pending").forEach(([key,v])=>{
+html+=`<div class="card">
+<b>${v.jam} - ${v.produk}</b><br>
+<button class="posted" onclick="setPosted('${key}')">Posted</button>
+<button class="delete" onclick="hapus('${key}')">Hapus</button>
+</div>`;
+});
+document.getElementById("list").innerHTML=html;
+checkAlarm();
+}
+
 function showNotification(text){
-navigator.serviceWorker.getRegistration().then(reg=>{
-if(reg){reg.showNotification("Shopee Monitor Nugroho",{body:text,icon:"https://cdn-icons-png.flaticon.com/512/726/726476.png",vibrate:[500,300,500],requireInteraction:true});}});
+navigator.serviceWorker.getRegistration().then(reg=>{if(reg)reg.showNotification("Shopee Monitor",{body:text});});
 let audio=new Audio("https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg");
-audio.play().catch(()=>{});
-if(navigator.vibrate){navigator.vibrate([500,300,500]);}}
+audio.play();
+}
+
 function checkAlarm(){
 let now=new Date();
 let today=now.toISOString().split('T')[0];
-let currentTime=now.getHours().toString().padStart(2,'0')+":"+now.getMinutes().toString().padStart(2,'0');
-data.forEach(item=>{
+let current=now.getHours().toString().padStart(2,'0')+":"+now.getMinutes().toString().padStart(2,'0');
+Object.values(jadwal).forEach(item=>{
 if(item.tanggal!==today) return;
 if(item.status==="Posted") return;
-let alarmTime=item.jam;
-let [h,m]=alarmTime.split(":");
-let alarmDate=new Date();alarmDate.setHours(h);alarmDate.setMinutes(m);
-let before5=new Date(alarmDate.getTime()-5*60000);
-let before5Str=before5.getHours().toString().padStart(2,'0')+":"+before5.getMinutes().toString().padStart(2,'0');
-let key1=today+"-"+alarmTime+"-5";
-let key2=today+"-"+alarmTime+"-0";
-if(currentTime===before5Str&&!notified[key1]){showNotification("5 menit lagi posting: "+item.produk);notified[key1]=true;}
-if(currentTime===alarmTime&&!notified[key2]){showNotification("Waktunya posting: "+item.produk);notified[key2]=true;}
-});}
+let alarm=item.jam;
+let [h,m]=alarm.split(":");
+let before=new Date();before.setHours(h);before.setMinutes(m-5);
+let beforeStr=before.getHours().toString().padStart(2,'0')+":"+before.getMinutes().toString().padStart(2,'0');
+if(current===beforeStr&&!notified[alarm+"b"]){showNotification("5 menit lagi "+item.produk);notified[alarm+"b"]=true;}
+if(current===alarm&&!notified[alarm]){showNotification("Waktunya posting "+item.produk);notified[alarm]=true;}
+});
+}
+
 setInterval(checkAlarm,30000);
-document.getElementById("tanggal").onchange=render;
-if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js");}
-render();
+
+if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js");
+
 </script>
 </body>
 </html>
