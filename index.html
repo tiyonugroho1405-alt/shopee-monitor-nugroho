@@ -43,16 +43,6 @@ background:green;
 color:white;
 }
 
-.pending{
-background:orange;
-color:white;
-}
-
-.failed{
-background:red;
-color:white;
-}
-
 .delete{
 background:#333;
 color:white;
@@ -98,8 +88,7 @@ document.getElementById("tanggal").value =
 new Date().toISOString().split('T')[0];
 
 
-// ===== SAVE =====
-
+// SAVE
 function simpan(){
 
 localStorage.setItem("jadwal", JSON.stringify(data));
@@ -109,8 +98,7 @@ render();
 }
 
 
-// ===== ADD =====
-
+// ADD
 function tambah(){
 
 let tanggal = document.getElementById("tanggal").value;
@@ -144,8 +132,7 @@ simpan();
 }
 
 
-// ===== DELETE =====
-
+// DELETE
 function hapus(index){
 
 if(confirm("Hapus jadwal ini?")){
@@ -159,46 +146,42 @@ simpan();
 }
 
 
-// ===== UPDATE STATUS =====
+// UPDATE STATUS
+function setPosted(index){
 
-function setStatus(index,status){
-
-data[index].status=status;
+data[index].status="Posted";
 
 simpan();
 
 }
 
 
-// ===== RENDER =====
-
+// RENDER
 function render(){
 
 let tanggal = document.getElementById("tanggal").value;
 
+// semua jadwal hari ini
 let hariIni = data
-
 .filter(d=>d.tanggal===tanggal)
-
 .sort((a,b)=>a.jam.localeCompare(b.jam));
 
+// hitung posted
 let posted = hariIni.filter(d=>d.status==="Posted").length;
 
+// tampilkan hanya pending
+let tampil = hariIni.filter(d=>d.status==="Pending");
+
 document.getElementById("stats").innerHTML =
-
 `
-
 Tanggal: ${tanggal}<br>
-
 Posted: ${posted} / ${TARGET}<br>
-
 Sisa: ${TARGET-posted}
-
 `;
 
 let html="";
 
-hariIni.forEach((d)=>{
+tampil.forEach((d)=>{
 
 let index = data.indexOf(d);
 
@@ -208,30 +191,14 @@ html+=`
 
 <b>${d.jam} - ${d.produk}</b><br>
 
-Status: ${d.status}<br><br>
+Status: Pending<br><br>
 
-<button class="posted" onclick="setStatus(${index},'Posted')">
-
+<button class="posted" onclick="setPosted(${index})">
 Posted
-
-</button>
-
-<button class="pending" onclick="setStatus(${index},'Pending')">
-
-Pending
-
-</button>
-
-<button class="failed" onclick="setStatus(${index},'Failed')">
-
-Failed
-
 </button>
 
 <button class="delete" onclick="hapus(${index})">
-
 Hapus
-
 </button>
 
 </div>
@@ -245,17 +212,13 @@ document.getElementById("list").innerHTML = html;
 }
 
 
-// ===== NOTIFICATION =====
-
+// NOTIFICATION PERMISSION
 if("Notification" in window){
-
 Notification.requestPermission();
-
 }
 
 
-// ===== ALARM =====
-
+// ALARM SYSTEM
 function checkAlarm(){
 
 let now = new Date();
@@ -263,14 +226,14 @@ let now = new Date();
 let today = now.toISOString().split('T')[0];
 
 let currentTime =
-
 now.getHours().toString().padStart(2,'0') + ":" +
-
 now.getMinutes().toString().padStart(2,'0');
 
 data.forEach(item=>{
 
 if(item.tanggal !== today) return;
+
+if(item.status==="Posted") return;
 
 let alarmTime = item.jam;
 
@@ -279,29 +242,22 @@ let [h,m] = alarmTime.split(":");
 let alarmDate = new Date();
 
 alarmDate.setHours(h);
-
 alarmDate.setMinutes(m);
-
 alarmDate.setSeconds(0);
 
 
-// 5 menit sebelum
-
+// 5 min before
 let before5 = new Date(alarmDate.getTime() - 5*60000);
 
 let before5Str =
-
 before5.getHours().toString().padStart(2,'0') + ":" +
-
 before5.getMinutes().toString().padStart(2,'0');
 
 let key1 = today+"-"+alarmTime+"-5";
-
 let key2 = today+"-"+alarmTime+"-0";
 
 
 // notify before
-
 if(currentTime === before5Str && !notified[key1]){
 
 showNotification("5 menit lagi posting: "+item.produk);
@@ -312,65 +268,6 @@ notified[key1]=true;
 
 
 // notify on time
-
 if(currentTime === alarmTime && !notified[key2]){
 
-showNotification("Waktunya posting: "+item.produk);
-
-notified[key2]=true;
-
-}
-
-});
-
-}
-
-
-// ===== SHOW NOTIFICATION =====
-
-function showNotification(text){
-
-if(Notification.permission==="granted"){
-
-new Notification("Shopee Monitor Nugroho",{
-
-body:text,
-
-icon:"https://cdn-icons-png.flaticon.com/512/726/726476.png",
-
-vibrate:[200,100,200]
-
-});
-
-}
-
-}
-
-
-// ===== LOOP =====
-
-setInterval(checkAlarm,30000);
-
-
-// ===== CHANGE DATE =====
-
-document.getElementById("tanggal").onchange = render;
-
-
-// ===== SERVICE WORKER =====
-
-if("serviceWorker" in navigator){
-
-navigator.serviceWorker.register("sw.js");
-
-}
-
-
-// ===== START =====
-
-render();
-
-</script>
-
-</body>
-</html>
+showNotification("Wak
