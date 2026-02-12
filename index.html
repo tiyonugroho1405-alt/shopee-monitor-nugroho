@@ -1,11 +1,15 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <title>Shopee Monitor Nugroho</title>
 
+<link rel="manifest" href="manifest.json">
+
 <style>
+
 body{
 font-family:Arial;
 background:#f4f6f8;
@@ -17,23 +21,40 @@ background:white;
 padding:12px;
 margin-bottom:10px;
 border-radius:10px;
+box-shadow:0 2px 6px rgba(0,0,0,0.1);
 }
 
 input,button{
-padding:8px;
+padding:10px;
 margin:5px 0;
 width:100%;
+border-radius:6px;
+border:1px solid #ccc;
 }
 
 button{
 border:none;
-border-radius:6px;
 cursor:pointer;
 }
 
-.posted{background:green;color:white}
-.pending{background:orange;color:white}
-.failed{background:red;color:white}
+.posted{
+background:green;
+color:white;
+}
+
+.pending{
+background:orange;
+color:white;
+}
+
+.failed{
+background:red;
+color:white;
+}
+
+h2{
+margin-bottom:10px;
+}
 
 </style>
 
@@ -69,57 +90,93 @@ let TARGET = 15;
 
 let data = JSON.parse(localStorage.getItem("jadwal") || "[]");
 
+let notified = {};
+
 document.getElementById("tanggal").value =
 new Date().toISOString().split('T')[0];
 
+
+// ===== SAVE DATA =====
+
 function simpan(){
+
 localStorage.setItem("jadwal", JSON.stringify(data));
+
 render();
+
 }
+
+
+// ===== ADD SCHEDULE =====
 
 function tambah(){
 
 let tanggal = document.getElementById("tanggal").value;
+
 let jam = document.getElementById("jam").value;
+
 let produk = document.getElementById("produk").value;
 
 if(!tanggal || !jam || !produk){
+
 alert("Lengkapi semua field");
+
 return;
+
 }
 
 data.push({
+
 tanggal,
+
 jam,
+
 produk,
+
 status:"Pending"
+
 });
 
 simpan();
 
 }
 
+
+// ===== UPDATE STATUS =====
+
 function setStatus(index,status){
 
 data[index].status=status;
+
 simpan();
 
 }
+
+
+// ===== RENDER LIST =====
 
 function render(){
 
 let tanggal = document.getElementById("tanggal").value;
 
 let hariIni = data
+
 .filter(d=>d.tanggal===tanggal)
+
 .sort((a,b)=>a.jam.localeCompare(b.jam));
 
 let posted = hariIni.filter(d=>d.status==="Posted").length;
 
 document.getElementById("stats").innerHTML =
+
 `
+
 Tanggal: ${tanggal}<br>
-Posted: ${posted} / ${TARGET}
+
+Posted: ${posted} / ${TARGET}<br>
+
+Sisa: ${TARGET-posted}
+
 `;
 
 let html="";
@@ -129,18 +186,33 @@ hariIni.forEach((d,i)=>{
 let index = data.indexOf(d);
 
 html+=`
+
 <div class="card">
 
 <b>${d.jam} - ${d.produk}</b><br>
-Status: ${d.status}<br>
 
-<button class="posted" onclick="setStatus(${index},'Posted')">Posted</button>
+Status: ${d.status}<br><br>
 
-<button class="pending" onclick="setStatus(${index},'Pending')">Pending</button>
+<button class="posted" onclick="setStatus(${index},'Posted')">
 
-<button class="failed" onclick="setStatus(${index},'Failed')">Failed</button>
+Posted
+
+</button>
+
+<button class="pending" onclick="setStatus(${index},'Pending')">
+
+Pending
+
+</button>
+
+<button class="failed" onclick="setStatus(${index},'Failed')">
+
+Failed
+
+</button>
 
 </div>
+
 `;
 
 });
@@ -149,7 +221,129 @@ document.getElementById("list").innerHTML = html;
 
 }
 
+
+// ===== NOTIFICATION PERMISSION =====
+
+if("Notification" in window){
+
+Notification.requestPermission();
+
+}
+
+
+// ===== ALARM CHECK =====
+
+function checkAlarm(){
+
+let now = new Date();
+
+let today = now.toISOString().split('T')[0];
+
+let currentTime =
+
+now.getHours().toString().padStart(2,'0') + ":" +
+
+now.getMinutes().toString().padStart(2,'0');
+
+data.forEach(item=>{
+
+if(item.tanggal !== today) return;
+
+let alarmTime = item.jam;
+
+let [h,m] = alarmTime.split(":");
+
+let alarmDate = new Date();
+
+alarmDate.setHours(h);
+
+alarmDate.setMinutes(m);
+
+alarmDate.setSeconds(0);
+
+
+// 5 minutes before
+
+let before5 = new Date(alarmDate.getTime() - 5*60000);
+
+let before5Str =
+
+before5.getHours().toString().padStart(2,'0') + ":" +
+
+before5.getMinutes().toString().padStart(2,'0');
+
+let key1 = today+"-"+alarmTime+"-5";
+
+let key2 = today+"-"+alarmTime+"-0";
+
+
+// NOTIFY 5 MIN BEFORE
+
+if(currentTime === before5Str && !notified[key1]){
+
+showNotification("5 menit lagi posting: "+item.produk);
+
+notified[key1]=true;
+
+}
+
+
+// NOTIFY ON TIME
+
+if(currentTime === alarmTime && !notified[key2]){
+
+showNotification("Waktunya posting: "+item.produk);
+
+notified[key2]=true;
+
+}
+
+});
+
+}
+
+
+// ===== SHOW NOTIFICATION =====
+
+function showNotification(text){
+
+if(Notification.permission==="granted"){
+
+new Notification("Shopee Monitor Nugroho",{
+
+body:text,
+
+icon:"https://cdn-icons-png.flaticon.com/512/726/726476.png",
+
+vibrate:[200,100,200]
+
+});
+
+}
+
+}
+
+
+// ===== CHECK EVERY 30 SEC =====
+
+setInterval(checkAlarm,30000);
+
+
+// ===== CHANGE DATE =====
+
 document.getElementById("tanggal").onchange = render;
+
+
+// ===== SERVICE WORKER REGISTER =====
+
+if("serviceWorker" in navigator){
+
+navigator.serviceWorker.register("sw.js");
+
+}
+
+
+// ===== INITIAL RENDER =====
 
 render();
 
