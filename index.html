@@ -48,6 +48,11 @@ background:#333;
 color:white;
 }
 
+.stats{
+font-size:18px;
+font-weight:bold;
+}
+
 </style>
 
 </head>
@@ -70,9 +75,7 @@ color:white;
 
 </div>
 
-<div class="card">
-<h3 id="stats"></h3>
-</div>
+<div class="card stats" id="stats"></div>
 
 <div id="list"></div>
 
@@ -146,7 +149,7 @@ simpan();
 }
 
 
-// UPDATE STATUS
+// SET POSTED
 function setPosted(index){
 
 data[index].status="Posted";
@@ -166,18 +169,22 @@ let hariIni = data
 .filter(d=>d.tanggal===tanggal)
 .sort((a,b)=>a.jam.localeCompare(b.jam));
 
-// hitung posted
+// hitung statistik
 let posted = hariIni.filter(d=>d.status==="Posted").length;
 
-// tampilkan hanya pending
-let tampil = hariIni.filter(d=>d.status==="Pending");
+let pending = hariIni.filter(d=>d.status==="Pending").length;
 
+// tampilkan statistik
 document.getElementById("stats").innerHTML =
 `
 Tanggal: ${tanggal}<br>
 Posted: ${posted} / ${TARGET}<br>
-Sisa: ${TARGET-posted}
+Pending: ${pending}
 `;
+
+
+// tampilkan hanya pending di list
+let tampil = hariIni.filter(d=>d.status==="Pending");
 
 let html="";
 
@@ -270,4 +277,51 @@ notified[key1]=true;
 // notify on time
 if(currentTime === alarmTime && !notified[key2]){
 
-showNotification("Wak
+showNotification("Waktunya posting: "+item.produk);
+
+notified[key2]=true;
+
+}
+
+});
+
+}
+
+
+// SHOW NOTIFICATION
+function showNotification(text){
+
+if(Notification.permission==="granted"){
+
+new Notification("Shopee Monitor Nugroho",{
+body:text,
+icon:"https://cdn-icons-png.flaticon.com/512/726/726476.png",
+vibrate:[200,100,200]
+});
+
+}
+
+}
+
+
+// LOOP
+setInterval(checkAlarm,30000);
+
+
+// CHANGE DATE
+document.getElementById("tanggal").onchange = render;
+
+
+// SERVICE WORKER
+if("serviceWorker" in navigator){
+navigator.serviceWorker.register("sw.js");
+}
+
+
+// START
+render();
+
+</script>
+
+</body>
+</html>
