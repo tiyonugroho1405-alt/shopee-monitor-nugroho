@@ -3,8 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Shopee Monitor Nugroho Firebase</title>
+<title>Shopee Monitor Nugroho FINAL</title>
 <link rel="manifest" href="manifest.json">
+
 <style>
 body{font-family:Arial;background:#f4f6f8;padding:15px;}
 .card{background:white;padding:12px;margin-bottom:10px;border-radius:10px;}
@@ -13,11 +14,35 @@ button{border:none;cursor:pointer;font-weight:bold;}
 .posted{background:green;color:white;}
 .delete{background:#333;color:white;}
 .stats{font-size:18px;font-weight:bold;}
+
+/* FULLSCREEN POPUP */
+#alarmPopup{
+display:none;
+position:fixed;
+top:0;
+left:0;
+width:100%;
+height:100%;
+background:red;
+color:white;
+z-index:9999;
+text-align:center;
+padding-top:40%;
+font-size:28px;
+}
+
+.popupBtn{
+font-size:22px;
+margin-top:20px;
+padding:15px;
+}
+
 </style>
+
 </head>
 <body>
 
-<h2>Shopee Monitor Nugroho (Realtime Sync)</h2>
+<h2>Shopee Monitor Nugroho</h2>
 
 <div class="card">
 <label>Tanggal</label>
@@ -32,10 +57,16 @@ button{border:none;cursor:pointer;font-weight:bold;}
 <div class="card stats" id="stats"></div>
 <div id="list"></div>
 
+<div id="alarmPopup">
+<div id="alarmText"></div>
+<button class="popupBtn posted" onclick="markPosted()">Tandai Posted</button>
+<button class="popupBtn delete" onclick="closePopup()">Tutup</button>
+</div>
+
 <script type="module">
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getDatabase, ref, push, onValue, update, remove } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+import { getDatabase, ref, push, onValue, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
 
 const firebaseConfig = {
@@ -45,8 +76,7 @@ const firebaseConfig = {
   projectId: "shopee-monitor-nugroho",
   storageBucket: "shopee-monitor-nugroho.firebasestorage.app",
   messagingSenderId: "870048461022",
-  appId: "1:870048461022:web:79900a4e1f911f3824924f",
-  measurementId: "G-W2DF2G8WLN"
+  appId: "1:870048461022:web:79900a4e1f911f3824924f"
 };
 
 
@@ -56,22 +86,20 @@ const db = getDatabase(app);
 let jadwal = {};
 let TARGET = 15;
 let notified = {};
+let currentAlarmKey = null;
+let alarmAudio = null;
 
 document.getElementById("tanggal").value = new Date().toISOString().split('T')[0];
 
-window.tambah = function() {
+window.tambah = function(){
 let tanggal = document.getElementById("tanggal").value;
 let jam = document.getElementById("jam").value;
 let produk = document.getElementById("produk").value;
 push(ref(db,"jadwal"),{tanggal,jam,produk,status:"Pending"});
 }
 
-window.setPosted = function(key) {
+window.setPosted = function(key){
 update(ref(db,"jadwal/"+key),{status:"Posted"});
-}
-
-window.hapus = function(key) {
-remove(ref(db,"jadwal/"+key));
 }
 
 onValue(ref(db,"jadwal"), snapshot=>{
@@ -84,38 +112,63 @@ let tanggal=document.getElementById("tanggal").value;
 let entries=Object.entries(jadwal).filter(([k,v])=>v.tanggal===tanggal);
 let posted=entries.filter(([k,v])=>v.status==="Posted").length;
 let pending=entries.filter(([k,v])=>v.status==="Pending").length;
+
 document.getElementById("stats").innerHTML=`Posted: ${posted} / ${TARGET}<br>Pending: ${pending}`;
+
 let html="";
 entries.filter(([k,v])=>v.status==="Pending").forEach(([key,v])=>{
 html+=`<div class="card">
 <b>${v.jam} - ${v.produk}</b><br>
 <button class="posted" onclick="setPosted('${key}')">Posted</button>
-<button class="delete" onclick="hapus('${key}')">Hapus</button>
 </div>`;
 });
+
 document.getElementById("list").innerHTML=html;
-checkAlarm();
 }
 
-function showNotification(text){
-navigator.serviceWorker.getRegistration().then(reg=>{if(reg)reg.showNotification("Shopee Monitor",{body:text});});
-let audio=new Audio("https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg");
-audio.play();
+function showPopup(key, produk, jam){
+currentAlarmKey = key;
+document.getElementById("alarmText").innerHTML =
+"🔔 WAKTUNYA POSTING<br><br>"+produk+"<br>"+jam;
+
+document.getElementById("alarmPopup").style.display="block";
+
+alarmAudio = new Audio("https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg");
+alarmAudio.loop = true;
+alarmAudio.play();
+
+navigator.serviceWorker.getRegistration().then(reg=>{
+if(reg)reg.showNotification("Shopee Monitor",{body:"Waktunya posting "+produk});
+});
+
+navigator.vibrate?.([500,300,500,300]);
+}
+
+window.closePopup = function(){
+document.getElementById("alarmPopup").style.display="none";
+alarmAudio?.pause();
+}
+
+window.markPosted = function(){
+if(currentAlarmKey){
+update(ref(db,"jadwal/"+currentAlarmKey),{status:"Posted"});
+}
+closePopup();
 }
 
 function checkAlarm(){
 let now=new Date();
 let today=now.toISOString().split('T')[0];
 let current=now.getHours().toString().padStart(2,'0')+":"+now.getMinutes().toString().padStart(2,'0');
-Object.values(jadwal).forEach(item=>{
+
+Object.entries(jadwal).forEach(([key,item])=>{
 if(item.tanggal!==today) return;
 if(item.status==="Posted") return;
-let alarm=item.jam;
-let [h,m]=alarm.split(":");
-let before=new Date();before.setHours(h);before.setMinutes(m-5);
-let beforeStr=before.getHours().toString().padStart(2,'0')+":"+before.getMinutes().toString().padStart(2,'0');
-if(current===beforeStr&&!notified[alarm+"b"]){showNotification("5 menit lagi "+item.produk);notified[alarm+"b"]=true;}
-if(current===alarm&&!notified[alarm]){showNotification("Waktunya posting "+item.produk);notified[alarm]=true;}
+
+if(current===item.jam && !notified[key]){
+showPopup(key,item.produk,item.jam);
+notified[key]=true;
+}
 });
 }
 
@@ -124,5 +177,6 @@ setInterval(checkAlarm,30000);
 if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js");
 
 </script>
+
 </body>
 </html>
